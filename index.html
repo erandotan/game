@@ -206,7 +206,7 @@ let players = {}, hitDeals = [], currentDealIndex = 0, totalDeals = 15;
 let hitDeal = null;
 let myBall  = null;
 let dragging = false, dragStart = null, dragCurrent = null;
-let lastBallSent = 0, hitSentForDeal = -1;
+let lastBallSent = 0, hitSentForDeal = -1, lastSentBallPos = null;
 let frozenTargetPos = null;
 
 // ─────────────────────────────────────────────────────
@@ -318,8 +318,16 @@ function handleMessage(msg) {
     }
   }
 
+  // Legacy single-ball update (kept for compatibility)
   if (msg.type === 'ballUpdate') {
     if (players[msg.playerId]) players[msg.playerId].ball = msg.ball;
+  }
+
+  // Batched ball positions (replaces per-message fan-out)
+  if (msg.type === 'balls') {
+    Object.entries(msg.balls).forEach(([pid, ball]) => {
+      if (pid !== myId && players[pid]) players[pid].ball = ball;
+    });
   }
 
   if (msg.type === 'hit') {
@@ -334,8 +342,9 @@ function handleMessage(msg) {
     gameState = 'playing';
     currentDealIndex = 0;
     hitDeals = [];
-    frozenTargetPos = null;
-    hitSentForDeal  = -1;
+    frozenTargetPos  = null;
+    hitSentForDeal   = -1;
+    lastSentBallPos  = null;
     myBall = null;
     document.getElementById('hit-overlay').classList.remove('show');
     document.getElementById('gameover-overlay').classList.remove('show');
@@ -346,6 +355,7 @@ function handleMessage(msg) {
     currentDealIndex = msg.currentDealIndex;
     frozenTargetPos  = null;
     hitSentForDeal   = -1;
+    lastSentBallPos  = null;
     gameState        = 'playing';
     myBall = null;
     document.getElementById('hit-overlay').classList.remove('show');
@@ -599,12 +609,18 @@ function updateMyBall() {
     }
   }
 
-  // Send position update
+  // Send position update — throttled to 50ms, only when ball moved > 3 units
   const now = Date.now();
-  if (now - lastBallSent > 32) {
-    ws.send(JSON.stringify({ type: 'ballUpdate', ball: myBall }));
-    if (players[myId]) players[myId].ball = { ...myBall };
-    lastBallSent = now;
+  if (now - lastBallSent > 50) {
+    const moved = !lastSentBallPos
+      || Math.abs(myBall.x - lastSentBallPos.x) > 3
+      || Math.abs(myBall.y - lastSentBallPos.y) > 3;
+    if (moved) {
+      ws.send(JSON.stringify({ type: 'ballUpdate', ball: myBall }));
+      if (players[myId]) players[myId].ball = { ...myBall };
+      lastSentBallPos = { x: myBall.x, y: myBall.y };
+      lastBallSent = now;
+    }
   }
 }
 
