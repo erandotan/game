@@ -580,6 +580,14 @@ function updateMyBall() {
     if (Math.abs(myBall.vy) < 1.5) myBall.vy = 0;
   }
 
+  // Deactivate ball once it has settled so player can shoot again
+  if (Math.abs(myBall.vx) < 0.4 && Math.abs(myBall.vy) < 0.4) {
+    myBall.active = false;
+    if (players[myId]) players[myId].ball.active = false;
+    ws.send(JSON.stringify({ type: 'ballUpdate', ball: myBall }));
+    return;
+  }
+
   // Collision with moving target (client-side detection)
   if (gameState === 'playing' && hitSentForDeal !== currentDealIndex) {
     const tgt = computeTargetPos();
