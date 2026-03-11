@@ -17,35 +17,19 @@ const DEALS = [
   "Cetin RFP", "Agentic-AI Catalyst", "AT&T Agentic-AI"
 ];
 
-let players = {};        // id -> { id, name, color, ball: {x,y,vx,vy,active}, score }
-let gameState = 'waiting'; // waiting | playing | paused
+const ADMIN_NAME = 'EranAdmin';
+
+let players = {};
+let gameState = 'waiting'; // waiting | playing | paused | gameover
 let hitDeal = null;
-let holes = [];
+let hitDeals = [];
+let currentDealIndex = 0;
 let nextId = 1;
 
 function randomColor() {
   const colors = ['#FF6B6B','#FFD93D','#6BCB77','#4D96FF','#FF922B','#CC5DE8','#20C997','#F783AC','#74C0FC','#A9E34B'];
   return colors[Math.floor(Math.random() * colors.length)];
 }
-
-function generateHoles() {
-  // Place deals as "holes" in a grid layout
-  holes = DEALS.map((deal, i) => {
-    const cols = 5;
-    const col = i % cols;
-    const row = Math.floor(i / cols);
-    return {
-      id: i,
-      deal,
-      x: 120 + col * 220,
-      y: 100 + row * 160,
-      r: 30,
-      hit: false
-    };
-  });
-}
-
-generateHoles();
 
 function broadcast(data) {
   const msg = JSON.stringify(data);
@@ -58,24 +42,25 @@ function getState() {
     players: Object.values(players),
     gameState,
     hitDeal,
-    holes
+    hitDeals,
+    currentDealIndex,
+    totalDeals: DEALS.length
   };
 }
 
 wss.on('connection', (ws) => {
   const id = String(nextId++);
-  const isHost = Object.keys(players).length === 0;
-
   ws.playerId = id;
   players[id] = {
-    id, name: `Player ${id}`,
+    id,
+    name: `Player ${id}`,
     color: randomColor(),
-    isHost,
-    ball: { x: 100 + Math.random()*600, y: 400 + Math.random()*100, vx: 0, vy: 0, active: false },
+    isAdmin: false,
+    ball: { x: 620, y: 620, vx: 0, vy: 0, active: false },
     score: 0
   };
 
-  ws.send(JSON.stringify({ type: 'init', playerId: id, isHost, holes, deals: DEALS }));
+  ws.send(JSON.stringify({ type: 'init', playerId: id, isAdmin: false }));
   broadcast(getState());
 
   ws.on('message', (raw) => {
@@ -86,6 +71,8 @@ wss.on('connection', (ws) => {
 
     if (msg.type === 'setName') {
       player.name = msg.name.slice(0, 20);
+      player.isAdmin = msg.name.trim() === ADMIN_NAME;
+      ws.send(JSON.stringify({ type: 'init', playerId: id, isAdmin: player.isAdmin }));
       broadcast(getState());
     }
 
@@ -96,53 +83,63 @@ wss.on('connection', (ws) => {
 
     if (msg.type === 'ballUpdate' && gameState === 'playing') {
       player.ball = msg.ball;
-
-      // Check hole collision
-      for (const hole of holes) {
-        if (hole.hit) continue;
-        const dx = player.ball.x - hole.x;
-        const dy = player.ball.y - hole.y;
-        const dist = Math.sqrt(dx*dx + dy*dy);
-        if (dist < hole.r + 12) {
-          hole.hit = true;
-          player.score += 1;
-          player.ball.active = false;
-          gameState = 'paused';
-          hitDeal = { deal: hole.deal, player: player.name, color: player.color };
-          broadcast({ type: 'hit', deal: hole.deal, playerName: player.name, playerColor: player.color, playerId: id });
-          broadcast(getState());
-          return;
-        }
-      }
       broadcast({ type: 'ballUpdate', playerId: id, ball: player.ball });
     }
 
-    if (msg.type === 'startGame' && player.isHost) {
+    // Client-side collision detection reports a hit
+    if (msg.type === 'hitTarget' && gameState === 'playing') {
+      const deal = DEALS[currentDealIndex];
+      if (!deal) return;
+
+      player.score += 1;
+      player.ball.active = false;
+      gameState = 'paused';
+      hitDeal = { deal, player: player.name, color: player.color, dealIndex: currentDealIndex };
+      hitDeals.push({ deal, player: player.name, color: player.color });
+
+      Object.values(players).forEach(p => { p.ball.active = false; });
+
+      broadcast({ type: 'hit', deal, playerName: player.name, playerColor: player.color });
+      broadcast(getState());
+    }
+
+    if (msg.type === 'startGame' && player.isAdmin) {
       gameState = 'playing';
       hitDeal = null;
-      holes.forEach(h => h.hit = false);
+      hitDeals = [];
+      currentDealIndex = 0;
       Object.values(players).forEach(p => {
-        p.ball = { x: 500, y: 500, vx: 0, vy: 0, active: false };
+        p.ball = { x: 620, y: 620, vx: 0, vy: 0, active: false };
         p.score = 0;
       });
       broadcast({ type: 'gameStarted' });
       broadcast(getState());
     }
 
-    if (msg.type === 'resume' && player.isHost && gameState === 'paused') {
-      gameState = 'playing';
-      hitDeal = null;
-      broadcast({ type: 'resumed' });
+    if (msg.type === 'resume' && player.isAdmin && gameState === 'paused') {
+      currentDealIndex++;
+      if (currentDealIndex >= DEALS.length) {
+        gameState = 'gameover';
+        broadcast({ type: 'gameover' });
+      } else {
+        gameState = 'playing';
+        hitDeal = null;
+        Object.values(players).forEach(p => {
+          p.ball = { x: 620, y: 620, vx: 0, vy: 0, active: false };
+        });
+        broadcast({ type: 'resumed', currentDealIndex });
+      }
       broadcast(getState());
     }
 
-    if (msg.type === 'resetGame' && player.isHost) {
-      generateHoles();
+    if (msg.type === 'resetGame' && player.isAdmin) {
       gameState = 'waiting';
       hitDeal = null;
+      hitDeals = [];
+      currentDealIndex = 0;
       Object.values(players).forEach(p => {
         p.score = 0;
-        p.ball = { x: 500, y: 500, vx: 0, vy: 0, active: false };
+        p.ball = { x: 620, y: 620, vx: 0, vy: 0, active: false };
       });
       broadcast(getState());
     }
@@ -150,11 +147,6 @@ wss.on('connection', (ws) => {
 
   ws.on('close', () => {
     delete players[id];
-    // If host left, assign to next
-    const remaining = Object.values(players);
-    if (remaining.length > 0 && !remaining.find(p => p.isHost)) {
-      remaining[0].isHost = true;
-    }
     broadcast(getState());
   });
 });
