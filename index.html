@@ -1,0 +1,833 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🎯 Presales World Tour — Deal Shot!</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Exo+2:wght@400;600;800&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #0a0e1a;
+    --panel: #111827;
+    --border: #1f2d4a;
+    --accent: #f59e0b;
+    --accent2: #06b6d4;
+    --text: #e2e8f0;
+    --muted: #64748b;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Exo 2', sans-serif;
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── TOP BAR ── */
+  #topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 20px;
+    background: var(--panel);
+    border-bottom: 2px solid var(--border);
+    flex-shrink: 0;
+    gap: 12px;
+  }
+
+  #title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 28px;
+    letter-spacing: 3px;
+    color: var(--accent);
+    text-shadow: 0 0 20px #f59e0b88;
+    white-space: nowrap;
+  }
+
+  #status-badge {
+    padding: 4px 14px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+  .status-waiting  { background: #1e3a5f; color: var(--accent2); border: 1px solid var(--accent2); }
+  .status-playing  { background: #14532d; color: #4ade80; border: 1px solid #4ade80; }
+  .status-paused   { background: #7c2d12; color: #fb923c; border: 1px solid #fb923c; animation: pulse-border 1s infinite; }
+
+  @keyframes pulse-border { 0%,100%{opacity:1} 50%{opacity:.5} }
+
+  #player-count { font-size: 13px; color: var(--muted); white-space: nowrap; }
+
+  #controls { display: flex; gap: 8px; align-items: center; }
+
+  .btn {
+    padding: 7px 16px;
+    border-radius: 8px;
+    border: none;
+    font-family: 'Exo 2', sans-serif;
+    font-weight: 800;
+    font-size: 12px;
+    letter-spacing: 1px;
+    cursor: pointer;
+    text-transform: uppercase;
+    transition: all .15s;
+  }
+  .btn:active { transform: scale(.96); }
+  .btn-gold   { background: var(--accent); color: #000; }
+  .btn-gold:hover { background: #fbbf24; }
+  .btn-cyan   { background: var(--accent2); color: #000; }
+  .btn-cyan:hover { background: #22d3ee; }
+  .btn-red    { background: #ef4444; color: #fff; }
+  .btn-red:hover { background: #f87171; }
+  .btn:disabled { opacity: .3; cursor: not-allowed; }
+
+  #name-input {
+    padding: 7px 12px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: 'Exo 2', sans-serif;
+    font-size: 13px;
+    width: 130px;
+  }
+  #name-input:focus { outline: none; border-color: var(--accent2); }
+
+  /* ── MAIN LAYOUT ── */
+  #main {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  /* ── CANVAS AREA ── */
+  #canvas-wrap {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    background: radial-gradient(ellipse at 50% 50%, #0f1f3d 0%, #0a0e1a 100%);
+  }
+
+  canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    cursor: crosshair;
+  }
+
+  /* ── SIDEBAR ── */
+  #sidebar {
+    width: 200px;
+    background: var(--panel);
+    border-left: 2px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+
+  #sidebar h3 {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 18px;
+    letter-spacing: 2px;
+    color: var(--accent);
+    padding: 12px 16px 8px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  #scoreboard {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px;
+  }
+
+  .player-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 8px;
+    border-radius: 8px;
+    margin-bottom: 4px;
+    background: #0a0e1a;
+    border: 1px solid var(--border);
+    transition: border-color .2s;
+  }
+  .player-row.me { border-color: var(--accent2); }
+
+  .player-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .player-name {
+    flex: 1;
+    font-size: 12px;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .player-score {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 18px;
+    color: var(--accent);
+  }
+  .host-badge {
+    font-size: 9px;
+    background: var(--accent);
+    color: #000;
+    padding: 1px 4px;
+    border-radius: 4px;
+    font-weight: 800;
+    letter-spacing: 1px;
+  }
+
+  /* ── HIT OVERLAY ── */
+  #hit-overlay {
+    display: none;
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,.75);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 24px;
+    backdrop-filter: blur(4px);
+  }
+  #hit-overlay.show { display: flex; }
+
+  #hit-card {
+    background: linear-gradient(135deg, #111827, #1e3a5f);
+    border: 3px solid var(--accent);
+    border-radius: 20px;
+    padding: 40px 60px;
+    text-align: center;
+    box-shadow: 0 0 60px #f59e0b55;
+    animation: pop-in .4s cubic-bezier(.34,1.56,.64,1);
+  }
+  @keyframes pop-in {
+    from { transform: scale(.4); opacity: 0; }
+    to   { transform: scale(1);  opacity: 1; }
+  }
+
+  #hit-emoji { font-size: 64px; margin-bottom: 12px; }
+  #hit-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 18px;
+    letter-spacing: 4px;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+  #hit-deal {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 42px;
+    color: var(--accent);
+    letter-spacing: 2px;
+    line-height: 1.1;
+    margin-bottom: 16px;
+    text-shadow: 0 0 30px #f59e0b88;
+  }
+  #hit-player {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 24px;
+  }
+
+  #confetti-wrap {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    overflow: hidden;
+    z-index: 99;
+  }
+
+  .confetti-piece {
+    position: absolute;
+    width: 10px; height: 10px;
+    border-radius: 2px;
+    animation: fall linear forwards;
+  }
+  @keyframes fall {
+    0%   { transform: translateY(-20px) rotate(0deg); opacity: 1; }
+    100% { transform: translateY(110vh) rotate(720deg); opacity: 0; }
+  }
+
+  /* ── JOIN MODAL ── */
+  #join-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.9);
+    z-index: 200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  #join-card {
+    background: var(--panel);
+    border: 2px solid var(--accent);
+    border-radius: 20px;
+    padding: 48px;
+    text-align: center;
+    width: 420px;
+    box-shadow: 0 0 60px #f59e0b33;
+    animation: pop-in .4s cubic-bezier(.34,1.56,.64,1);
+  }
+  #join-card h1 {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 40px;
+    letter-spacing: 4px;
+    color: var(--accent);
+    margin-bottom: 4px;
+  }
+  #join-card p { color: var(--muted); font-size: 14px; margin-bottom: 28px; }
+  #join-name {
+    width: 100%;
+    padding: 14px 18px;
+    background: var(--bg);
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    color: var(--text);
+    font-family: 'Exo 2', sans-serif;
+    font-size: 18px;
+    text-align: center;
+    margin-bottom: 16px;
+    transition: border-color .2s;
+  }
+  #join-name:focus { outline: none; border-color: var(--accent); }
+  #join-btn { width: 100%; padding: 14px; font-size: 16px; letter-spacing: 3px; }
+
+  /* Aim line */
+  #aim-indicator {
+    position: absolute;
+    pointer-events: none;
+    z-index: 10;
+    display: none;
+  }
+
+  #instructions {
+    padding: 10px 16px;
+    border-top: 1px solid var(--border);
+    font-size: 11px;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+</style>
+</head>
+<body>
+
+<!-- JOIN MODAL -->
+<div id="join-modal">
+  <div id="join-card">
+    <div style="font-size:48px;margin-bottom:8px">🎯</div>
+    <h1>DEAL SHOT!</h1>
+    <p>Presales World Tour · Happy Hour Challenge</p>
+    <input id="join-name" type="text" placeholder="Your name..." maxlength="20" />
+    <button class="btn btn-gold" id="join-btn" onclick="joinGame()">JOIN THE GAME</button>
+  </div>
+</div>
+
+<!-- TOP BAR -->
+<div id="topbar">
+  <div id="title">🎯 DEAL SHOT</div>
+  <span id="status-badge" class="status-waiting">WAITING</span>
+  <span id="player-count">0 players</span>
+  <div style="flex:1"></div>
+  <div id="controls">
+    <input id="name-input" type="text" placeholder="Rename..." maxlength="20" onkeydown="if(event.key==='Enter')changeName()" />
+    <button class="btn btn-gold" id="btn-start" onclick="startGame()" disabled>▶ START</button>
+    <button class="btn btn-cyan" id="btn-resume" onclick="resumeGame()" style="display:none">▶ RESUME</button>
+    <button class="btn btn-red" id="btn-reset" onclick="resetGame()" style="display:none">↺ RESET</button>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div id="main">
+  <div id="canvas-wrap">
+    <canvas id="gameCanvas"></canvas>
+    <div id="confetti-wrap"></div>
+    <div id="hit-overlay">
+      <div id="hit-card">
+        <div id="hit-emoji">🎯</div>
+        <div id="hit-title">DEAL UNLOCKED!</div>
+        <div id="hit-deal"></div>
+        <div id="hit-player"></div>
+        <div style="color:var(--muted);font-size:13px;">🎤 The floor is yours...</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="sidebar">
+    <h3>🏆 SCORES</h3>
+    <div id="scoreboard"></div>
+    <div id="instructions">
+      <b>HOW TO PLAY:</b><br>
+      Click & drag on canvas<br>
+      to aim, release to throw!<br><br>
+      Hit a deal hole to unlock it<br>
+      & get the spotlight 🎤
+    </div>
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+let ws, myId, isHost = false;
+let gameState = 'waiting';
+let players = {}, holes = [];
+let hitDeal = null;
+
+// Ball physics (local simulation)
+let myBall = null;
+let dragging = false, dragStart = null, dragCurrent = null;
+let lastBallSent = 0;
+
+// Canvas sizing
+function resizeCanvas() {
+  canvas.width = canvas.offsetWidth;
+  canvas.height = canvas.offsetHeight;
+}
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+
+// Map hole positions to canvas
+function holeCanvasPos(hole) {
+  const W = canvas.width, H = canvas.height;
+  const gameW = 1240, gameH = 700;
+  return {
+    x: (hole.x / gameW) * W,
+    y: (hole.y / gameH) * H,
+    r: (hole.r / gameW) * W
+  };
+}
+
+function ballCanvasPos(bx, by) {
+  return {
+    x: (bx / 1240) * canvas.width,
+    y: (by / 700) * canvas.height
+  };
+}
+
+function canvasToGame(cx, cy) {
+  return {
+    x: (cx / canvas.width) * 1240,
+    y: (cy / canvas.height) * 700
+  };
+}
+
+// ── WEBSOCKET ──
+function connect(name) {
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  const host = location.host || 'localhost:3000';
+
+  const joinBtn = document.getElementById('join-btn');
+  joinBtn.textContent = 'CONNECTING...';
+  joinBtn.disabled = true;
+
+  ws = new WebSocket(`${proto}://${host}`);
+
+  ws.onopen = () => {
+    ws.send(JSON.stringify({ type: 'setName', name }));
+  };
+
+  ws.onmessage = (e) => {
+    const msg = JSON.parse(e.data);
+    // First message = we are connected, hide modal
+    if (!document.getElementById('join-modal').dataset.hidden) {
+      document.getElementById('join-modal').style.display = 'none';
+      document.getElementById('join-modal').dataset.hidden = '1';
+      document.getElementById('name-input').value = name;
+    }
+    handleMessage(msg);
+  };
+
+  ws.onerror = () => {
+    joinBtn.textContent = 'JOIN THE GAME';
+    joinBtn.disabled = false;
+    alert("Could not connect. Make sure server is running and open http://localhost:3000");
+  };
+
+  ws.onclose = () => {
+    setTimeout(() => location.reload(), 2000);
+  };
+}
+
+function handleMessage(msg) {
+  if (msg.type === 'init') {
+    myId = msg.playerId;
+    isHost = msg.isHost;
+    holes = msg.holes;
+    updateHostControls();
+  }
+
+  if (msg.type === 'state') {
+    // Build players map
+    players = {};
+    msg.players.forEach(p => players[p.id] = p);
+    holes = msg.holes;
+    gameState = msg.gameState;
+    hitDeal = msg.hitDeal;
+    updateUI();
+    updateScoreboard();
+  }
+
+  if (msg.type === 'ballUpdate') {
+    if (players[msg.playerId]) {
+      players[msg.playerId].ball = msg.ball;
+    }
+  }
+
+  if (msg.type === 'hit') {
+    showHitOverlay(msg.deal, msg.playerName, msg.playerColor);
+    spawnConfetti();
+  }
+
+  if (msg.type === 'gameStarted') {
+    gameState = 'playing';
+    document.getElementById('hit-overlay').classList.remove('show');
+    myBall = null;
+  }
+
+  if (msg.type === 'resumed') {
+    gameState = 'playing';
+    document.getElementById('hit-overlay').classList.remove('show');
+  }
+}
+
+function updateUI() {
+  // Status badge
+  const badge = document.getElementById('status-badge');
+  badge.className = 'status-badge status-' + gameState;
+  badge.textContent = gameState === 'waiting' ? 'WAITING' : gameState === 'playing' ? 'IN PLAY' : '⏸ PAUSED';
+
+  // Player count
+  const count = Object.keys(players).length;
+  document.getElementById('player-count').textContent = `${count} player${count !== 1 ? 's' : ''}`;
+
+  // Host controls
+  const me = players[myId];
+  if (me) isHost = me.isHost;
+  updateHostControls();
+
+  if (gameState === 'paused' && hitDeal) {
+    showHitOverlay(hitDeal.deal, hitDeal.player, hitDeal.color);
+  }
+}
+
+function updateHostControls() {
+  document.getElementById('btn-start').disabled = !isHost || gameState !== 'waiting';
+  document.getElementById('btn-resume').style.display = isHost && gameState === 'paused' ? 'inline-block' : 'none';
+  document.getElementById('btn-reset').style.display = isHost ? 'inline-block' : 'none';
+}
+
+function updateScoreboard() {
+  const list = Object.values(players).sort((a, b) => b.score - a.score);
+  document.getElementById('scoreboard').innerHTML = list.map(p => `
+    <div class="player-row ${p.id === myId ? 'me' : ''}">
+      <div class="player-dot" style="background:${p.color}"></div>
+      <div class="player-name">${p.name}${p.isHost ? ' <span class="host-badge">HOST</span>' : ''}</div>
+      <div class="player-score">${p.score}</div>
+    </div>
+  `).join('');
+}
+
+// ── OVERLAY ──
+function showHitOverlay(deal, playerName, color) {
+  document.getElementById('hit-deal').textContent = deal;
+  document.getElementById('hit-player').innerHTML = `<span style="color:${color}">🎯 ${playerName}</span> scored a hit!`;
+  document.getElementById('hit-overlay').classList.add('show');
+}
+
+function spawnConfetti() {
+  const wrap = document.getElementById('confetti-wrap');
+  wrap.innerHTML = '';
+  const colors = ['#f59e0b','#06b6d4','#10b981','#ef4444','#cc5de8','#4d96ff','#ff922b'];
+  for (let i = 0; i < 80; i++) {
+    const el = document.createElement('div');
+    el.className = 'confetti-piece';
+    el.style.cssText = `
+      left: ${Math.random()*100}%;
+      top: -20px;
+      background: ${colors[Math.floor(Math.random()*colors.length)]};
+      width: ${6+Math.random()*8}px;
+      height: ${6+Math.random()*8}px;
+      border-radius: ${Math.random() > .5 ? '50%' : '2px'};
+      animation-duration: ${1.5+Math.random()*2}s;
+      animation-delay: ${Math.random()*0.5}s;
+    `;
+    wrap.appendChild(el);
+  }
+  setTimeout(() => wrap.innerHTML = '', 4000);
+}
+
+// ── INPUT ──
+canvas.addEventListener('mousedown', (e) => {
+  if (gameState !== 'playing') return;
+  const me = players[myId];
+  if (!me || me.ball.active) return;
+  dragging = true;
+  const rect = canvas.getBoundingClientRect();
+  dragStart = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+  dragCurrent = { ...dragStart };
+});
+
+canvas.addEventListener('mousemove', (e) => {
+  if (!dragging) return;
+  const rect = canvas.getBoundingClientRect();
+  dragCurrent = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+});
+
+canvas.addEventListener('mouseup', (e) => {
+  if (!dragging) return;
+  dragging = false;
+  const rect = canvas.getBoundingClientRect();
+  const end = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+
+  // Velocity from drag direction (reversed — throw away from drag)
+  const dx = dragStart.x - end.x;
+  const dy = dragStart.y - end.y;
+  const speed = Math.min(Math.sqrt(dx*dx + dy*dy) * 0.18, 22);
+  const angle = Math.atan2(dy, dx);
+  const vx = Math.cos(angle) * speed;
+  const vy = Math.sin(angle) * speed;
+
+  const gStart = canvasToGame(dragStart.x, dragStart.y);
+
+  myBall = { x: gStart.x, y: gStart.y, vx, vy, active: true };
+  ws.send(JSON.stringify({ type: 'throw', x: gStart.x, y: gStart.y, vx, vy }));
+});
+
+// Touch support
+canvas.addEventListener('touchstart', (e) => {
+  e.preventDefault();
+  const t = e.touches[0];
+  const rect = canvas.getBoundingClientRect();
+  dragging = true;
+  dragStart = { x: t.clientX - rect.left, y: t.clientY - rect.top };
+  dragCurrent = { ...dragStart };
+}, { passive: false });
+
+canvas.addEventListener('touchmove', (e) => {
+  e.preventDefault();
+  const t = e.touches[0];
+  const rect = canvas.getBoundingClientRect();
+  dragCurrent = { x: t.clientX - rect.left, y: t.clientY - rect.top };
+}, { passive: false });
+
+canvas.addEventListener('touchend', (e) => {
+  e.preventDefault();
+  canvas.dispatchEvent(new MouseEvent('mouseup', {
+    clientX: dragCurrent.x + canvas.getBoundingClientRect().left,
+    clientY: dragCurrent.y + canvas.getBoundingClientRect().top
+  }));
+}, { passive: false });
+
+// ── PHYSICS LOOP ──
+function updateMyBall() {
+  if (!myBall || !myBall.active) return;
+  const W = 1240, H = 700;
+
+  myBall.x += myBall.vx;
+  myBall.y += myBall.vy;
+  myBall.vy += 0.4; // gravity
+  myBall.vx *= 0.99; // friction
+
+  // Bounce walls
+  if (myBall.x < 12) { myBall.x = 12; myBall.vx = Math.abs(myBall.vx) * 0.7; }
+  if (myBall.x > W-12) { myBall.x = W-12; myBall.vx = -Math.abs(myBall.vx) * 0.7; }
+  if (myBall.y < 12) { myBall.y = 12; myBall.vy = Math.abs(myBall.vy) * 0.7; }
+  if (myBall.y > H-12) {
+    myBall.y = H-12;
+    myBall.vy = -Math.abs(myBall.vy) * 0.65;
+    myBall.vx *= 0.85;
+    if (Math.abs(myBall.vy) < 1.5) { myBall.vy = 0; }
+  }
+
+  // Send update to server
+  const now = Date.now();
+  if (now - lastBallSent > 30) {
+    ws.send(JSON.stringify({ type: 'ballUpdate', ball: myBall }));
+    if (players[myId]) players[myId].ball = { ...myBall };
+    lastBallSent = now;
+  }
+}
+
+// ── DRAW ──
+function draw() {
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+
+  // Background grid
+  ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+  ctx.lineWidth = 1;
+  for (let x = 0; x < W; x += 60) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
+  for (let y = 0; y < H; y += 60) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
+
+  // Draw holes (deal targets)
+  holes.forEach(hole => {
+    const p = holeCanvasPos(hole);
+    if (hole.hit) {
+      // Hit - glowing green
+      ctx.save();
+      ctx.shadowColor = '#10b981';
+      ctx.shadowBlur = 20;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
+      ctx.fillStyle = '#064e3b';
+      ctx.fill();
+      ctx.strokeStyle = '#10b981';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.restore();
+
+      ctx.fillStyle = '#10b981';
+      ctx.font = `bold ${Math.max(9, p.r*0.45)}px Exo 2`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('✓', p.x, p.y);
+    } else {
+      // Unlit hole
+      ctx.save();
+      ctx.shadowColor = '#f59e0b';
+      ctx.shadowBlur = 15;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
+      ctx.fillStyle = '#1e2d4e';
+      ctx.fill();
+      ctx.strokeStyle = '#f59e0b';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.restore();
+
+      // Hole opening (dark center)
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r * 0.45, 0, Math.PI*2);
+      ctx.fillStyle = '#000';
+      ctx.fill();
+
+      // Deal label
+      const fs = Math.max(8, Math.min(11, p.r * 0.55));
+      ctx.fillStyle = '#e2e8f0';
+      ctx.font = `600 ${fs}px Exo 2`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      const label = hole.deal.length > 14 ? hole.deal.slice(0,13)+'…' : hole.deal;
+      ctx.fillText(label, p.x, p.y + p.r + 4);
+    }
+  });
+
+  // Draw aim line while dragging
+  if (dragging && dragStart && dragCurrent) {
+    const dx = dragStart.x - dragCurrent.x;
+    const dy = dragStart.y - dragCurrent.y;
+    const len = Math.sqrt(dx*dx+dy*dy);
+    if (len > 5) {
+      ctx.save();
+      ctx.strokeStyle = 'rgba(245,158,11,0.6)';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([6,4]);
+      ctx.beginPath();
+      ctx.moveTo(dragStart.x, dragStart.y);
+      ctx.lineTo(dragStart.x + dx*1.5, dragStart.y + dy*1.5);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.restore();
+
+      // Ball preview at start
+      ctx.save();
+      ctx.shadowColor = players[myId]?.color || '#fff';
+      ctx.shadowBlur = 12;
+      ctx.beginPath();
+      ctx.arc(dragStart.x, dragStart.y, 12, 0, Math.PI*2);
+      ctx.fillStyle = players[myId]?.color || '#fff';
+      ctx.globalAlpha = 0.6;
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  // Draw all player balls
+  Object.values(players).forEach(p => {
+    if (!p.ball || !p.ball.active) return;
+    const bp = ballCanvasPos(p.ball.x, p.ball.y);
+    ctx.save();
+    ctx.shadowColor = p.color;
+    ctx.shadowBlur = 18;
+    // Ball body
+    const grad = ctx.createRadialGradient(bp.x-3, bp.y-3, 1, bp.x, bp.y, 13);
+    grad.addColorStop(0, lightenColor(p.color));
+    grad.addColorStop(1, p.color);
+    ctx.beginPath();
+    ctx.arc(bp.x, bp.y, 13, 0, Math.PI*2);
+    ctx.fillStyle = grad;
+    ctx.fill();
+    ctx.restore();
+
+    // Player name label under ball
+    ctx.font = 'bold 10px Exo 2';
+    ctx.fillStyle = p.color;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText(p.name, bp.x, bp.y + 15);
+  });
+
+  // Instruction when waiting
+  if (gameState === 'waiting') {
+    ctx.fillStyle = 'rgba(245,158,11,0.7)';
+    ctx.font = 'bold 18px Exo 2';
+    ctx.textAlign = 'center';
+    ctx.fillText(isHost ? '⬆️ Click START when everyone is ready!' : '⏳ Waiting for the host to start...', W/2, H - 50);
+  }
+}
+
+function lightenColor(hex) {
+  const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+  return `rgb(${Math.min(255,r+80)},${Math.min(255,g+80)},${Math.min(255,b+80)})`;
+}
+
+// ── GAME LOOP ──
+function loop() {
+  updateMyBall();
+  draw();
+  requestAnimationFrame(loop);
+}
+loop();
+
+// ── CONTROLS ──
+function joinGame() {
+  const name = document.getElementById('join-name').value.trim() || 'Anonymous';
+  connect(name);
+}
+
+function changeName() {
+  const name = document.getElementById('name-input').value.trim();
+  if (name && ws) ws.send(JSON.stringify({ type: 'setName', name }));
+}
+
+function startGame() {
+  ws.send(JSON.stringify({ type: 'startGame' }));
+}
+function resumeGame() {
+  ws.send(JSON.stringify({ type: 'resume' }));
+}
+function resetGame() {
+  ws.send(JSON.stringify({ type: 'resetGame' }));
+  document.getElementById('hit-overlay').classList.remove('show');
+}
+
+document.getElementById('join-name').addEventListener('keydown', e => {
+  if (e.key === 'Enter') joinGame();
+});
+</script>
+</body>
+</html>
