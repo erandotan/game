@@ -127,6 +127,7 @@ function cancelAutoStart() {
 
 function autoStartGame() {
   if (gameState !== 'waiting' || Object.keys(players).length === 0) return;
+  lastActivityTime = Date.now(); // game just started = fresh activity
   gameState = 'playing';
   hitDeal = null; hitDeals = []; currentDealIndex = 0;
   Object.values(players).forEach(p => {
@@ -138,7 +139,28 @@ function autoStartGame() {
 }
 
 // ─────────────────────────────────────────────────────
-// IDLE-RESET COUNTDOWN (10s when all players disconnect)
+// INACTIVITY TRACKER
+// Resets timer + cancels any running reset-countdown on game activity
+// ─────────────────────────────────────────────────────
+let lastActivityTime = Date.now();
+
+function resetActivityTimer() {
+  lastActivityTime = Date.now();
+  cancelResetCD(); // cancel countdown if something just happened
+}
+
+// Check every second: if playing and idle > 10s → start reset countdown
+setInterval(() => {
+  if (gameState === 'playing' &&
+      Object.keys(players).length > 0 &&
+      !resetCDInterval &&
+      Date.now() - lastActivityTime > 10000) {
+    startResetCD();
+  }
+}, 1000);
+
+// ─────────────────────────────────────────────────────
+// IDLE-RESET COUNTDOWN (no players OR inactivity)
 // ─────────────────────────────────────────────────────
 let resetCDRemaining = 0, resetCDInterval = null;
 
@@ -235,8 +257,8 @@ wss.on('connection', (ws) => {
   ws.send(JSON.stringify({ type: 'init', playerId: id, isAdmin: false }));
   broadcast(getState());
 
-  // Cancel any in-progress idle-reset since someone just joined
-  cancelResetCD();
+  // Cancel any in-progress idle-reset / inactivity countdown
+  resetActivityTimer();
   // Start auto-start countdown on first player join (waiting state only)
   if (Object.keys(players).length === 1 && gameState === 'waiting') {
     startAutoStart();
@@ -257,11 +279,14 @@ wss.on('connection', (ws) => {
       player.isAdmin = player.name.trim() === ADMIN_NAME;
       ws.send(JSON.stringify({ type: 'init', playerId: id, isAdmin: player.isAdmin }));
       broadcast(getState());
+      // Re-arm auto-start after a force-reset re-login
+      if (gameState === 'waiting') startAutoStart();
     }
 
     // ── throw ─────────────────────────────────────────
     if (msg.type === 'throw' && gameState === 'playing') {
       if (!isValidBall(msg)) return;
+      resetActivityTimer(); // throwing = activity
       player.ball = { x: msg.x, y: msg.y, vx: msg.vx || 0, vy: msg.vy || 0, active: true };
       // State broadcast is intentional here (low frequency, once per throw)
       broadcast(getState());
@@ -279,6 +304,7 @@ wss.on('connection', (ws) => {
 
     // ── hitTarget ─────────────────────────────────────
     if (msg.type === 'hitTarget' && gameState === 'playing') {
+      resetActivityTimer(); // hitting = activity
       const deal = DEALS[currentDealIndex];
       if (!deal) return;
 
@@ -297,6 +323,7 @@ wss.on('connection', (ws) => {
     // ── startGame ─────────────────────────────────────
     if (msg.type === 'startGame' && player.isAdmin) {
       cancelAutoStart(); // stop the auto-start countdown if admin starts manually
+      resetActivityTimer(); // starting = activity
       gameState = 'playing';
       hitDeal   = null;
       hitDeals  = [];
@@ -311,6 +338,7 @@ wss.on('connection', (ws) => {
 
     // ── resume ────────────────────────────────────────
     if (msg.type === 'resume' && gameState === 'paused') {
+      resetActivityTimer(); // resuming = activity
       currentDealIndex++;
       if (currentDealIndex >= DEALS.length) {
         gameState = 'gameover';
