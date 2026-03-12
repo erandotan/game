@@ -283,6 +283,15 @@ wss.on('connection', (ws) => {
       if (gameState === 'waiting') startAutoStart();
     }
 
+    // ── setColor ──────────────────────────────────────
+    if (msg.type === 'setColor') {
+      const hex = String(msg.color || '');
+      if (/^#[0-9A-Fa-f]{6}$/.test(hex)) {
+        player.color = hex;
+        broadcast(getState());
+      }
+    }
+
     // ── throw ─────────────────────────────────────────
     if (msg.type === 'throw' && gameState === 'playing') {
       if (!isValidBall(msg)) return;
