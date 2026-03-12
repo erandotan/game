@@ -18,12 +18,38 @@ const BALL_TICK_MS  = 50;    // how often to broadcast ball positions (20 fps)
 const RATE_LIMIT_MS = 50;    // min interval between ballUpdates per player
 const HEARTBEAT_MS  = 20000; // ping interval to detect dead sockets
 
+// 30 fun physical/silly kid challenges (Hebrew + emoji)
 const DEALS = [
-  "TELUS Canada Demo", "Ericsson POC", "Rakuten Congested Cells",
-  "Telefonica Spain + Nvidia", "Rogers Canada PoC", "TEF Spain Tupl",
-  "VNPT", "DISH NOC AI+ServiceNow", "TELUS Cust. Experience",
-  "Verizon Voice POC", "TELUS RFP On-site", "O2 Czech RFQ",
-  "Cetin RFP", "Agentic-AI Catalyst", "AT&T Agentic-AI"
+  "🦁 שאג כמו אריה גדול!",
+  "🐸 קפוץ 5 פעמים כמו צפרדע!",
+  "🕺 רקוד 10 שניות!",
+  "🐒 חקה קוף!",
+  "🎤 שיר פסוק אחד בקול רם!",
+  "🐧 הלך כמו פינגווין!",
+  "🎭 עשה הפרצוף המצחיק ביותר!",
+  "🐕 נבח כמו כלב!",
+  "🌪️ סובב סביב עצמך 3 פעמים!",
+  "🤸 עשה תרגיל התעמלות!",
+  "🐱 מייאו כמו חתול!",
+  "🦄 הצג כמו חד קרן!",
+  "🐦 פרוש ידיים ועוף!",
+  "🎪 עשה תרגיל ליצן!",
+  "🐊 זחל כמו תנין!",
+  "🦊 ספר בדיחה!",
+  "🐘 דשדש כמו פיל!",
+  "🎯 ספור מ-10 לאחור בצרחה!",
+  "🐰 קפוץ כמו ארנב!",
+  "🐙 הראה 8 ידיים כמו תמנון!",
+  "🦜 חזור על מה שאמר חבר!",
+  "🐢 הלך לאט מאוד כמו צב!",
+  "🦒 הגע כמה שיותר גבוה כמו ג׳ירפה!",
+  "🐻 העמד פנים שאתה ישן כמו דוב!",
+  "🦅 פרוש ידיים ועוף כמו נשר!",
+  "🐬 קפוץ כמו דולפין!",
+  "🦸 הציג כמו גיבור-על!",
+  "🌈 שיר שיר של קשת!",
+  "🎀 תן חמש לכל מי שבחדר!",
+  "🏆 ריקוד ניצחון — כולם מצטרפים!"
 ];
 
 const ADMIN_NAME = 'EranAdmin';
@@ -198,7 +224,7 @@ wss.on('connection', (ws) => {
     }
 
     // ── resume ────────────────────────────────────────
-    if (msg.type === 'resume' && player.isAdmin && gameState === 'paused') {
+    if (msg.type === 'resume' && gameState === 'paused') {
       currentDealIndex++;
       if (currentDealIndex >= DEALS.length) {
         gameState = 'gameover';
