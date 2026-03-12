@@ -88,7 +88,9 @@ function getState() {
     hitDeal,
     hitDeals,
     currentDealIndex,
-    totalDeals: DEALS.length
+    totalDeals: DEALS.length,
+    startCountdown: startCDInterval ? startCDRemaining : null,
+    resetCountdown: resetCDInterval ? resetCDRemaining : null
   };
 }
 
@@ -96,6 +98,82 @@ function isValidBall(b) {
   return b && typeof b.x === 'number' && typeof b.y === 'number'
            && isFinite(b.x) && isFinite(b.y)
            && Math.abs(b.x) < 5000 && Math.abs(b.y) < 5000;
+}
+
+// ─────────────────────────────────────────────────────
+// AUTO-START COUNTDOWN (30s from first player joining)
+// ─────────────────────────────────────────────────────
+let startCDRemaining = 0, startCDInterval = null;
+
+function startAutoStart() {
+  if (startCDInterval || gameState !== 'waiting') return;
+  startCDRemaining = 30;
+  broadcast({ type: 'startCountdown', remaining: startCDRemaining });
+  startCDInterval = setInterval(() => {
+    startCDRemaining--;
+    broadcast({ type: 'startCountdown', remaining: startCDRemaining });
+    if (startCDRemaining <= 0) {
+      clearInterval(startCDInterval); startCDInterval = null;
+      autoStartGame();
+    }
+  }, 1000);
+}
+
+function cancelAutoStart() {
+  if (!startCDInterval) return;
+  clearInterval(startCDInterval); startCDInterval = null; startCDRemaining = 0;
+  broadcast({ type: 'startCountdown', remaining: null });
+}
+
+function autoStartGame() {
+  if (gameState !== 'waiting' || Object.keys(players).length === 0) return;
+  gameState = 'playing';
+  hitDeal = null; hitDeals = []; currentDealIndex = 0;
+  Object.values(players).forEach(p => {
+    p.ball  = { x: 620, y: 620, vx: 0, vy: 0, active: false };
+    p.score = 0;
+  });
+  broadcast({ type: 'gameStarted' });
+  broadcast(getState());
+}
+
+// ─────────────────────────────────────────────────────
+// IDLE-RESET COUNTDOWN (10s when all players disconnect)
+// ─────────────────────────────────────────────────────
+let resetCDRemaining = 0, resetCDInterval = null;
+
+function startResetCD() {
+  if (resetCDInterval) return;
+  resetCDRemaining = 10;
+  broadcast({ type: 'resetCountdown', remaining: resetCDRemaining });
+  resetCDInterval = setInterval(() => {
+    resetCDRemaining--;
+    broadcast({ type: 'resetCountdown', remaining: resetCDRemaining });
+    if (resetCDRemaining <= 0) {
+      clearInterval(resetCDInterval); resetCDInterval = null;
+      doForceReset();
+    }
+  }, 1000);
+}
+
+function cancelResetCD() {
+  if (!resetCDInterval) return;
+  clearInterval(resetCDInterval); resetCDInterval = null; resetCDRemaining = 0;
+  broadcast({ type: 'resetCountdown', remaining: null });
+}
+
+function doForceReset() {
+  cancelAutoStart();
+  gameState = 'waiting'; hitDeal = null; hitDeals = []; currentDealIndex = 0;
+  // Keep WS connections — just wipe player data so they must re-login
+  Object.values(players).forEach(p => {
+    p.score  = 0;
+    p.ball   = { x: 620, y: 620, vx: 0, vy: 0, active: false };
+    p.isAdmin = false;
+    p.name   = `Player ${p.id}`;
+  });
+  broadcast({ type: 'forceReset' });
+  broadcast(getState());
 }
 
 // ─────────────────────────────────────────────────────
@@ -157,6 +235,13 @@ wss.on('connection', (ws) => {
   ws.send(JSON.stringify({ type: 'init', playerId: id, isAdmin: false }));
   broadcast(getState());
 
+  // Cancel any in-progress idle-reset since someone just joined
+  cancelResetCD();
+  // Start auto-start countdown on first player join (waiting state only)
+  if (Object.keys(players).length === 1 && gameState === 'waiting') {
+    startAutoStart();
+  }
+
   ws.on('message', (raw) => {
     // Size guard
     if (raw.length > MAX_MSG_BYTES) return;
@@ -211,6 +296,7 @@ wss.on('connection', (ws) => {
 
     // ── startGame ─────────────────────────────────────
     if (msg.type === 'startGame' && player.isAdmin) {
+      cancelAutoStart(); // stop the auto-start countdown if admin starts manually
       gameState = 'playing';
       hitDeal   = null;
       hitDeals  = [];
@@ -257,10 +343,19 @@ wss.on('connection', (ws) => {
   ws.on('close', () => {
     delete players[id];
     broadcast(getState());
+    // If nobody left, cancel auto-start and begin idle-reset countdown
+    if (Object.keys(players).length === 0) {
+      cancelAutoStart();
+      startResetCD();
+    }
   });
 
   ws.on('error', () => {
     delete players[id];
+    if (Object.keys(players).length === 0) {
+      cancelAutoStart();
+      startResetCD();
+    }
   });
 });
 

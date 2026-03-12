@@ -72,6 +72,20 @@
     #hit-player { font-size: 16px; font-weight: 600; margin-bottom: 24px; }
     #hit-admin-note { font-size: 13px; color: var(--muted); }
 
+    /* START COUNTDOWN OVERLAY */
+    #start-cd-overlay { display:none; position:absolute; inset:0; z-index:90; background:rgba(0,0,0,.78); align-items:center; justify-content:center; backdrop-filter:blur(4px); }
+    #start-cd-overlay.show { display:flex; }
+    #start-cd-card { text-align:center; }
+    #start-cd-label { font-family:'Bebas Neue',sans-serif; font-size:26px; letter-spacing:4px; color:var(--accent2); margin-bottom:4px; direction:rtl; }
+    #start-cd-num { font-family:'Bebas Neue',sans-serif; font-size:180px; line-height:1; color:var(--accent); text-shadow:0 0 80px #f59e0bcc; animation:cd-pulse 1s ease-in-out infinite; }
+    @keyframes cd-pulse { 0%,100%{transform:scale(1);opacity:1} 50%{transform:scale(1.08);opacity:.85} }
+    #start-cd-sub { font-size:20px; color:var(--text); direction:rtl; margin-top:10px; letter-spacing:1px; }
+    /* RESET WARNING BANNER */
+    #reset-warning { display:none; position:fixed; bottom:0; left:0; right:0; z-index:500; background:#7f1d1d; color:#fecaca; padding:13px 20px; text-align:center; font-size:16px; font-weight:700; letter-spacing:1px; direction:rtl; animation:reset-pulse .8s ease-in-out infinite; }
+    #reset-warning.show { display:block; }
+    @keyframes reset-pulse { 0%,100%{background:#7f1d1d} 50%{background:#b91c1c} }
+    #reset-cd-num { font-size:22px; font-family:'Bebas Neue',sans-serif; }
+
     /* LEVEL UP OVERLAY */
     #levelup-overlay { display:none; position:absolute; inset:0; z-index:150; align-items:center; justify-content:center; pointer-events:none; }
     #levelup-overlay.show { display:flex; }
@@ -163,6 +177,15 @@
         <div id="levelup-emoji">⬆️</div>
         <div id="levelup-title">LEVEL UP!</div>
         <div id="levelup-sub"></div>
+      </div>
+    </div>
+
+    <!-- START COUNTDOWN OVERLAY -->
+    <div id="start-cd-overlay">
+      <div id="start-cd-card">
+        <div id="start-cd-label">המשחק מתחיל בעוד</div>
+        <div id="start-cd-num">30</div>
+        <div id="start-cd-sub">הצטרפו עכשיו!</div>
       </div>
     </div>
 
@@ -311,6 +334,26 @@ function connect(name) {
   ws.onclose = () => { setTimeout(() => location.reload(), 2000); };
 }
 
+function syncStartCD(remaining) {
+  const el = document.getElementById('start-cd-overlay');
+  if (remaining == null || remaining <= 0) {
+    el.classList.remove('show');
+  } else {
+    document.getElementById('start-cd-num').textContent = remaining;
+    el.classList.add('show');
+  }
+}
+
+function syncResetCD(remaining) {
+  const el = document.getElementById('reset-warning');
+  if (remaining == null || remaining <= 0) {
+    el.classList.remove('show');
+  } else {
+    document.getElementById('reset-cd-num').textContent = remaining;
+    el.classList.add('show');
+  }
+}
+
 function handleMessage(msg) {
   if (msg.type === 'init') {
     myId    = msg.playerId;
@@ -342,6 +385,39 @@ function handleMessage(msg) {
     if (gameState === 'gameover') {
       showGameOver();
     }
+    // Restore countdown state for late-joiners
+    syncStartCD(msg.startCountdown);
+    syncResetCD(msg.resetCountdown);
+  }
+
+  // ── startCountdown ────────────────────────────────────
+  if (msg.type === 'startCountdown') {
+    syncStartCD(msg.remaining);
+  }
+
+  // ── resetCountdown ────────────────────────────────────
+  if (msg.type === 'resetCountdown') {
+    syncResetCD(msg.remaining);
+  }
+
+  // ── forceReset ────────────────────────────────────────
+  if (msg.type === 'forceReset') {
+    // Wipe client state — player must re-enter name
+    myName = null; isAdmin = false;
+    hitDeals = []; gameState = 'waiting'; currentDealIndex = 0;
+    myBall = null; hitSentForDeal = -1; lastSentBallPos = null; frozenTargetPos = null;
+    ['hit-overlay','gameover-overlay','levelup-overlay','start-cd-overlay'].forEach(id => {
+      document.getElementById(id).classList.remove('show');
+    });
+    syncResetCD(null); // hide reset warning banner
+    // Show join modal again
+    const jm = document.getElementById('join-modal');
+    jm.style.display = 'flex';
+    delete jm.dataset.hidden;
+    document.getElementById('join-name').value = '';
+    const jb = document.getElementById('join-btn');
+    jb.textContent = 'JOIN THE GAME'; jb.disabled = false;
+    updateAdminControls(); updateUI();
   }
 
   // Legacy single-ball update (kept for compatibility)
@@ -374,6 +450,7 @@ function handleMessage(msg) {
     myBall = null;
     document.getElementById('hit-overlay').classList.remove('show');
     document.getElementById('gameover-overlay').classList.remove('show');
+    syncStartCD(null); // hide countdown overlay when game starts
     updateAdminControls();
   }
 
@@ -867,8 +944,16 @@ loop();
 // CONTROLS
 // ─────────────────────────────────────────────────────
 function joinGame() {
-  const name = document.getElementById('join-name').value.trim() || 'Anonymous';
-  connect(name);
+  const name = document.getElementById('join-name').value.trim() || 'אנונימי';
+  // After a forceReset the WS is still open — re-use it instead of reconnecting
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'setName', name }));
+    const jm = document.getElementById('join-modal');
+    jm.style.display = 'none';
+    jm.dataset.hidden = '1';
+  } else {
+    connect(name);
+  }
 }
 function startGame()  { ws.send(JSON.stringify({ type: 'startGame' })); }
 function resumeGame() { ws.send(JSON.stringify({ type: 'resume' })); }
@@ -882,5 +967,10 @@ document.getElementById('join-name').addEventListener('keydown', e => {
   if (e.key === 'Enter') joinGame();
 });
 </script>
+
+<!-- RESET WARNING BANNER (fixed, always on top) -->
+<div id="reset-warning">
+  ⚠️ אין שחקנים — המשחק יאופס בעוד <span id="reset-cd-num">10</span> שניות
+</div>
 </body>
 </html>
